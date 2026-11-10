@@ -53,6 +53,83 @@ class LayananPenyimpanan {
     await simpanSemuaTransaksi(daftar);
   }
 
+  /// Menghapus semua catatan transaksi
+  Future<void> hapusSemuaTransaksi() async {
+    final preferensi = await SharedPreferences.getInstance();
+    await preferensi.remove(_kunciDaftarTransaksi);
+  }
+
+  /// Menambahkan beberapa data contoh simulasi untuk menguji fitur
+  Future<void> pasangDataContoh() async {
+    final sekarang = DateTime.now();
+    final dataContoh = [
+      // Pemasukan awal bulan
+      ModelTransaksi(
+        idTransaksi: 'cth_1',
+        judulTransaksi: 'Uang Saku / Pemasukan Virtual',
+        jumlahUang: 800000,
+        jenisTransaksi: JenisTransaksi.pemasukan,
+        kategoriTransaksi: 'Uang Saku',
+        tanggalTransaksi: sekarang.subtract(const Duration(days: 20)),
+        catatanTambahan: 'Saldo awal untuk simulasi',
+      ),
+      // Pengeluaran 1 bulan lalu (22 hari lalu)
+      ModelTransaksi(
+        idTransaksi: 'cth_2',
+        judulTransaksi: 'Buku Catatan & Alat Tulis',
+        jumlahUang: 45000,
+        jenisTransaksi: JenisTransaksi.pengeluaran,
+        kategoriTransaksi: 'Pendidikan',
+        tanggalTransaksi: sekarang.subtract(const Duration(days: 22)),
+      ),
+      // Pengeluaran minggu sebelumnya (10 hari lalu)
+      ModelTransaksi(
+        idTransaksi: 'cth_3',
+        judulTransaksi: 'Makan Malam Bersama Teman',
+        jumlahUang: 85000,
+        jenisTransaksi: JenisTransaksi.pengeluaran,
+        kategoriTransaksi: 'Makanan & Minuman',
+        tanggalTransaksi: sekarang.subtract(const Duration(days: 10)),
+      ),
+      ModelTransaksi(
+        idTransaksi: 'cth_4',
+        judulTransaksi: 'Bensin & Parkir Motor',
+        jumlahUang: 30000,
+        jenisTransaksi: JenisTransaksi.pengeluaran,
+        kategoriTransaksi: 'Transportasi',
+        tanggalTransaksi: sekarang.subtract(const Duration(days: 9)),
+      ),
+      // Pengeluaran minggu ini (2 hari lalu & hari ini)
+      ModelTransaksi(
+        idTransaksi: 'cth_5',
+        judulTransaksi: 'Paket Internet Bulanan',
+        jumlahUang: 100000,
+        jenisTransaksi: JenisTransaksi.pengeluaran,
+        kategoriTransaksi: 'Tagihan',
+        tanggalTransaksi: sekarang.subtract(const Duration(days: 2)),
+      ),
+      ModelTransaksi(
+        idTransaksi: 'cth_6',
+        judulTransaksi: 'Kopi & Camilan Sore',
+        jumlahUang: 35000,
+        jenisTransaksi: JenisTransaksi.pengeluaran,
+        kategoriTransaksi: 'Makanan & Minuman',
+        tanggalTransaksi: sekarang,
+      ),
+    ];
+
+    await simpanSemuaTransaksi(dataContoh);
+
+    // Target anggaran 500k
+    await simpanTaskTarget(
+      ModelTarget(
+        namaTarget: 'Batas Belanja',
+        jumlahTarget: 500000,
+        keteranganTarget: 'Batas belanja bulanan',
+      ),
+    );
+  }
+
   /// Mengambil pengaturan task target anggaran
   Future<ModelTarget> ambilTaskTarget() async {
     final preferensi = await SharedPreferences.getInstance();

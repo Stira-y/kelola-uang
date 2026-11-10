@@ -70,6 +70,26 @@ class _LayarUtamaState extends State<LayarUtama> {
     await _muatData();
   }
 
+  /// Memuat data contoh simulasi
+  Future<void> _aksiMuatDataContoh() async {
+    await _layananPenyimpanan.pasangDataContoh();
+    await _muatData();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Data simulasi berhasil dimuat!')),
+    );
+  }
+
+  /// Menghapus semua catatan data
+  Future<void> _aksiHapusSemuaData() async {
+    await _layananPenyimpanan.hapusSemuaTransaksi();
+    await _muatData();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Semua catatan berhasil direset.')),
+    );
+  }
+
   /// Membuka form atur target anggaran
   void _bukaModalAturTarget() {
     showModalBottomSheet(
@@ -165,6 +185,38 @@ class _LayarUtamaState extends State<LayarUtama> {
             icon: const Icon(Icons.history_rounded, color: Colors.teal),
             tooltip: 'Riwayat Pengeluaran',
             onPressed: _bukaLayarRiwayat,
+          ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert, color: Colors.black54),
+            onSelected: (nilai) {
+              if (nilai == 'muat_contoh') {
+                _aksiMuatDataContoh();
+              } else if (nilai == 'hapus_semua') {
+                _aksiHapusSemuaData();
+              }
+            },
+            itemBuilder: (konteks) => [
+              const PopupMenuItem(
+                value: 'muat_contoh',
+                child: Row(
+                  children: [
+                    Icon(Icons.auto_awesome, size: 18, color: Colors.teal),
+                    SizedBox(width: 8),
+                    Text('Isi Data Simulasi'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'hapus_semua',
+                child: Row(
+                  children: [
+                    Icon(Icons.delete_sweep, size: 18, color: Colors.redAccent),
+                    SizedBox(width: 8),
+                    Text('Reset Semua Data'),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -422,6 +474,19 @@ class _LayarUtamaState extends State<LayarUtama> {
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.grey.shade600,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              OutlinedButton.icon(
+                                onPressed: _aksiMuatDataContoh,
+                                icon: const Icon(Icons.auto_awesome, size: 16),
+                                label: const Text('Isi Data Contoh Simulasi'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.teal,
+                                  side: const BorderSide(color: Colors.teal),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
                                 ),
                               ),
                             ],
