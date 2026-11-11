@@ -37,11 +37,11 @@ class _LayarAturTargetState extends State<LayarAturTarget> {
     final t = widget.targetSaatIni;
     _pengontrolNama = TextEditingController(text: t?.namaTarget ?? 'Target Belanja');
     _pengontrolJumlahTarget = TextEditingController(
-      text: t != null ? t.jumlahTarget.toStringAsFixed(0) : '500000',
+      text: t != null ? FormatUang.keFormatTitik(t.jumlahTarget) : '500.000',
     );
     _tipePeriodeDipilih = t?.tipePeriode ?? TipePeriodeTarget.mingguan;
     _pengontrolPendapatanTetap = TextEditingController(
-      text: t != null ? t.pendapatanTetap.toStringAsFixed(0) : '50000',
+      text: t != null ? FormatUang.keFormatTitik(t.pendapatanTetap) : '50.000',
     );
     _pengontrolKeterangan = TextEditingController(text: t?.keteranganTarget ?? '');
   }
@@ -179,10 +179,22 @@ class _LayarAturTargetState extends State<LayarAturTarget> {
             const SizedBox(height: 6),
             TextField(
               controller: _pengontrolJumlahTarget,
-              keyboardType: TextInputType.number,
-              onChanged: (_) => setState(() {}),
+              keyboardType: TextInputType.text,
+              onChanged: (teks) {
+                if (teks.toLowerCase().endsWith('k')) {
+                  final nilai = FormatUang.uraikanNominal(teks);
+                  if (nilai != null && nilai > 0) {
+                    final terformat = FormatUang.keFormatTitik(nilai);
+                    _pengontrolJumlahTarget.value = TextEditingValue(
+                      text: terformat,
+                      selection: TextSelection.collapsed(offset: terformat.length),
+                    );
+                  }
+                }
+                setState(() {});
+              },
               decoration: InputDecoration(
-                hintText: 'Contoh: 500000',
+                hintText: 'Contoh: 500.000 atau 500k',
                 filled: true,
                 fillColor: Colors.grey.shade100,
                 border: OutlineInputBorder(
@@ -202,7 +214,7 @@ class _LayarAturTargetState extends State<LayarAturTarget> {
                   labelStyle: const TextStyle(color: Colors.teal, fontSize: 11, fontWeight: FontWeight.w600),
                   onPressed: () {
                     setState(() {
-                      _pengontrolJumlahTarget.text = nilai.toStringAsFixed(0);
+                      _pengontrolJumlahTarget.text = FormatUang.keFormatTitik(nilai);
                     });
                   },
                 );
@@ -276,10 +288,22 @@ class _LayarAturTargetState extends State<LayarAturTarget> {
             const SizedBox(height: 6),
             TextField(
               controller: _pengontrolPendapatanTetap,
-              keyboardType: TextInputType.number,
-              onChanged: (_) => setState(() {}),
+              keyboardType: TextInputType.text,
+              onChanged: (teks) {
+                if (teks.toLowerCase().endsWith('k')) {
+                  final nilai = FormatUang.uraikanNominal(teks);
+                  if (nilai != null && nilai > 0) {
+                    final terformat = FormatUang.keFormatTitik(nilai);
+                    _pengontrolPendapatanTetap.value = TextEditingValue(
+                      text: terformat,
+                      selection: TextSelection.collapsed(offset: terformat.length),
+                    );
+                  }
+                }
+                setState(() {});
+              },
               decoration: InputDecoration(
-                hintText: 'Contoh: 50000',
+                hintText: 'Contoh: 50.000 atau 50k',
                 filled: true,
                 fillColor: Colors.grey.shade100,
                 border: OutlineInputBorder(
@@ -299,7 +323,7 @@ class _LayarAturTargetState extends State<LayarAturTarget> {
                   labelStyle: const TextStyle(color: Colors.teal, fontSize: 11, fontWeight: FontWeight.w600),
                   onPressed: () {
                     setState(() {
-                      _pengontrolPendapatanTetap.text = nilai.toStringAsFixed(0);
+                      _pengontrolPendapatanTetap.text = FormatUang.keFormatTitik(nilai);
                     });
                   },
                 );

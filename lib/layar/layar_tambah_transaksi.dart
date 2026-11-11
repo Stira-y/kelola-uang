@@ -55,7 +55,7 @@ class _LayarTambahTransaksiState extends State<LayarTambahTransaksi> {
     final edit = widget.transaksiUntukDiedit;
     if (edit != null) {
       _pengontrolJudul = TextEditingController(text: edit.judulTransaksi);
-      _pengontrolJumlah = TextEditingController(text: edit.jumlahUang.toStringAsFixed(0));
+      _pengontrolJumlah = TextEditingController(text: FormatUang.keFormatTitik(edit.jumlahUang));
       _pengontrolCatatan = TextEditingController(text: edit.catatanTambahan);
       _jenisDipilih = edit.jenisTransaksi;
       _tanggalDipilih = edit.tanggalTransaksi;
@@ -223,7 +223,19 @@ class _LayarTambahTransaksiState extends State<LayarTambahTransaksi> {
                   controller: _pengontrolJumlah,
                   keyboardType: TextInputType.text,
                   style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  onChanged: (_) => setState(() {}),
+                  onChanged: (teks) {
+                    if (teks.toLowerCase().endsWith('k')) {
+                      final nilai = FormatUang.uraikanNominal(teks);
+                      if (nilai != null && nilai > 0) {
+                        final terformat = FormatUang.keFormatTitik(nilai);
+                        _pengontrolJumlah.value = TextEditingValue(
+                          text: terformat,
+                          selection: TextSelection.collapsed(offset: terformat.length),
+                        );
+                      }
+                    }
+                    setState(() {});
+                  },
                   decoration: InputDecoration(
                     prefixIcon: const Icon(Icons.money_rounded, color: Colors.teal),
                     hintText: 'Contoh: 50.000 atau 50k',
