@@ -352,20 +352,43 @@ class _LayarUtamaState extends State<LayarUtama> {
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FA),
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        title: Row(
           children: [
-            const Text(
-              'Kelola Uang',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 20,
-                color: Colors.black87,
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.asset(
+                'assets/ikon/ikon_aplikasi.png',
+                width: 36,
+                height: 36,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: Colors.teal.shade100,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.monetization_on, color: Colors.teal),
+                ),
               ),
             ),
-            Text(
-              FormatUang.keTanggalLengkap(DateTime.now()),
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Kelola Uang',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 19,
+                    color: Colors.black87,
+                  ),
+                ),
+                Text(
+                  FormatUang.keTanggalLengkap(DateTime.now()),
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                ),
+              ],
             ),
           ],
         ),
