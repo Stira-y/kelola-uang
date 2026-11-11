@@ -7,19 +7,25 @@ import '../utilitas/format_uang.dart';
 class KartuTaskTarget extends StatelessWidget {
   final ModelTarget? taskTarget;
   final ModelEstimasiTarget? estimasi;
+  final int jumlahTargetTercapai;
   final VoidCallback saatDitekanBuatTarget;
   final VoidCallback saatDitekanUbahTarget;
   final VoidCallback saatDitekanHapusTarget;
   final VoidCallback saatDitekanHitungUlang;
+  final VoidCallback saatDitekanSimpanTargetTercapai;
+  final VoidCallback saatDitekanLihatRiwayatTarget;
 
   const KartuTaskTarget({
     super.key,
     required this.taskTarget,
     required this.estimasi,
+    this.jumlahTargetTercapai = 0,
     required this.saatDitekanBuatTarget,
     required this.saatDitekanUbahTarget,
     required this.saatDitekanHapusTarget,
     required this.saatDitekanHitungUlang,
+    required this.saatDitekanSimpanTargetTercapai,
+    required this.saatDitekanLihatRiwayatTarget,
   });
 
   @override
@@ -76,22 +82,35 @@ class KartuTaskTarget extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              height: 44,
-              child: ElevatedButton.icon(
-                onPressed: saatDitekanBuatTarget,
-                icon: const Icon(Icons.add_task_rounded, size: 18),
-                label: const Text('Buat Target Belanja'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.teal,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 44,
+                    child: ElevatedButton.icon(
+                      onPressed: saatDitekanBuatTarget,
+                      icon: const Icon(Icons.add_task_rounded, size: 18),
+                      label: const Text('Buat Target Belanja'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.teal,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                    ),
                   ),
-                  elevation: 0,
                 ),
-              ),
+                if (jumlahTargetTercapai > 0) ...[
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: saatDitekanLihatRiwayatTarget,
+                    icon: const Icon(Icons.military_tech_rounded, color: Colors.amber),
+                    tooltip: 'Lihat Target Tercapai ($jumlahTargetTercapai)',
+                  ),
+                ],
+              ],
             ),
           ],
         ),
@@ -123,10 +142,10 @@ class KartuTaskTarget extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: est.apakahSudahTercapai ? Colors.green.shade300 : Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: est.apakahSudahTercapai ? Colors.green.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -145,10 +164,14 @@ class KartuTaskTarget extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Colors.teal.shade50,
+                        color: est.apakahSudahTercapai ? Colors.green.shade50 : Colors.teal.shade50,
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(Icons.flag_rounded, color: Colors.teal, size: 20),
+                      child: Icon(
+                        est.apakahSudahTercapai ? Icons.check_circle_rounded : Icons.flag_rounded,
+                        color: est.apakahSudahTercapai ? Colors.green : Colors.teal,
+                        size: 20,
+                      ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -199,7 +222,7 @@ class KartuTaskTarget extends StatelessWidget {
 
           const SizedBox(height: 14),
 
-          // Rasio Uang Saya / Target
+          // Rasio Uang Saya / Target (Format titik pemisah ribuan: contoh 50.000 / 500.000)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
@@ -225,7 +248,7 @@ class KartuTaskTarget extends StatelessWidget {
                             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                             children: [
                               TextSpan(
-                                text: FormatUang.keFormatSingkat(est.totalUangSaatIni),
+                                text: FormatUang.keFormatTitik(est.totalUangSaatIni),
                                 style: TextStyle(
                                   color: est.apakahSudahTercapai ? Colors.green.shade700 : Colors.teal.shade800,
                                   fontSize: 18,
@@ -236,7 +259,7 @@ class KartuTaskTarget extends StatelessWidget {
                                 style: TextStyle(color: Colors.grey.shade400),
                               ),
                               TextSpan(
-                                text: FormatUang.keFormatSingkat(target.jumlahTarget),
+                                text: FormatUang.keFormatTitik(target.jumlahTarget),
                                 style: const TextStyle(color: Colors.black87),
                               ),
                             ],
@@ -292,7 +315,7 @@ class KartuTaskTarget extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Pendapatan Tetap: ${FormatUang.keFormatSingkat(target.pendapatanTetap)}/$namaPeriode',
+                      'Pendapatan Tetap: ${FormatUang.keFormatTitik(target.pendapatanTetap)}/$namaPeriode',
                       style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
@@ -325,23 +348,63 @@ class KartuTaskTarget extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
 
-                // Baris Info Estimasi
+                // Baris Info Estimasi atau Tombol Simpan Target Tercapai
                 if (est.apakahSudahTercapai) ...[
-                  const Row(
-                    children: [
-                      Icon(Icons.check_circle_rounded, color: Colors.green, size: 16),
-                      SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          'Target telah tercapai! Dana kamu sudah mencukupi.',
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.green.shade200),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.check_circle_rounded, color: Colors.green, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Target ${FormatUang.keRupiah(target.jumlahTarget)} telah tercapai!',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.green,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Tercapai pada: ${FormatUang.keTanggalLengkap(DateTime.now())}',
                           style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.green.shade900,
                           ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 40,
+                          child: ElevatedButton.icon(
+                            onPressed: saatDitekanSimpanTargetTercapai,
+                            icon: const Icon(Icons.bookmark_added_rounded, size: 18),
+                            label: const Text('Simpan Target Belanja Tercapai'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green.shade700,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              elevation: 0,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ] else if (est.apakahArusKasNegatif) ...[
                   Row(
@@ -361,6 +424,11 @@ class KartuTaskTarget extends StatelessWidget {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 6),
+                  Text(
+                    est.statusPenjelasan,
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                  ),
                 ] else ...[
                   Row(
                     children: [
@@ -378,13 +446,12 @@ class KartuTaskTarget extends StatelessWidget {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 6),
+                  Text(
+                    est.statusPenjelasan,
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                  ),
                 ],
-
-                const SizedBox(height: 6),
-                Text(
-                  est.statusPenjelasan,
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
-                ),
               ],
             ),
           ),

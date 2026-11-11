@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-/// Utilitas untuk memformat mata uang Rupiah dan tanggal dalam Bahasa Indonesia
+/// Utilitas untuk memformat mata uang Rupiah, tanda titik nominal, dan penguraian teks 'k'
 class FormatUang {
-  /// Format angka ke bentuk mata uang Rupiah (contoh: Rp 500.000)
+  /// Format angka ke bentuk mata uang Rupiah lengkap (contoh: Rp 500.000)
   static String keRupiah(double jumlahUang) {
     final formatMataUang = NumberFormat.currency(
       locale: 'id_ID',
@@ -11,6 +11,12 @@ class FormatUang {
       decimalDigits: 0,
     );
     return formatMataUang.format(jumlahUang);
+  }
+
+  /// Format angka dengan tanda titik pemisah ribuan tanpa simbol 'Rp' (contoh: 50.000, 500.000)
+  static String keFormatTitik(double jumlahUang) {
+    final formatTitik = NumberFormat.decimalPattern('id_ID');
+    return formatTitik.format(jumlahUang);
   }
 
   /// Format angka singkat (contoh: 500k, 1.5jt)
@@ -25,13 +31,48 @@ class FormatUang {
     return jumlahUang.toStringAsFixed(0);
   }
 
+  /// Mengurai input teks (mendukung 'k' = 000, 'jt' = 000000, titik ribuan)
+  /// Contoh:
+  /// - "50k" -> 50000
+  /// - "500k" -> 500000
+  /// - "1.5k" -> 1500
+  /// - "1jt" -> 1000000
+  /// - "50.000" -> 50000
+  /// - "50000" -> 50000
+  static double? uraikanNominal(String teksInput) {
+    String teks = teksInput.trim().toLowerCase();
+    if (teks.isEmpty) return null;
+
+    // Bersihkan spasi dan simbol mata uang jika ada
+    teks = teks.replaceAll('rp', '').replaceAll(' ', '');
+
+    // Cek apakah berakhiran 'jt' (juta)
+    if (teks.endsWith('jt')) {
+      final angkaTeks = teks.substring(0, teks.length - 2).replaceAll('.', '').replaceAll(',', '.');
+      final angka = double.tryParse(angkaTeks);
+      return angka != null ? angka * 1000000 : null;
+    }
+
+    // Cek apakah berakhiran 'k' (ribu)
+    if (teks.endsWith('k')) {
+      final angkaTeks = teks.substring(0, teks.length - 1).replaceAll('.', '').replaceAll(',', '.');
+      final angka = double.tryParse(angkaTeks);
+      return angka != null ? angka * 1000 : null;
+    }
+
+    // Format angka biasa dengan tanda titik pemisah ribuan (misal: 50.000 atau 500.000)
+    // Hapus tanda titik pemisah ribuan
+    final angkaBersih = teks.replaceAll('.', '').replaceAll(',', '.');
+    return double.tryParse(angkaBersih);
+  }
+
   /// Format tanggal singkat (contoh: 10 Nov 2026)
   static String keTanggalSingkat(DateTime tanggal) {
     final formatTanggal = DateFormat('d MMM yyyy', 'id_ID');
     return formatTanggal.format(tanggal);
   }
 
-  /// Format tanggal lengkap beserta hari (contoh: Selasa, 10 November 2026)
+  /// Format tanggal lengkap beserta hari (contoh: Rabu, 11 November 2026)
   static String keTanggalLengkap(DateTime tanggal) {
     final formatTanggal = DateFormat('EEEE, d MMMM yyyy', 'id_ID');
     return formatTanggal.format(tanggal);
@@ -93,7 +134,7 @@ class FormatUang {
         return Colors.green;
       case 'bonus':
       case 'investasi':
-        return Colors.tealAccent;
+        return Colors.tealAccent.shade700;
       default:
         return Colors.blueGrey;
     }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../model/model_transaksi.dart';
 import '../model/model_target.dart';
+import '../model/model_target_tercapai.dart';
 import '../model/model_estimasi_target.dart';
 import '../layanan/layanan_penyimpanan.dart';
 import '../komponen/kartu_task_target.dart';
@@ -8,6 +9,7 @@ import '../utilitas/format_uang.dart';
 import 'layar_tambah_transaksi.dart';
 import 'layar_riwayat.dart';
 import 'layar_atur_target.dart';
+import 'layar_riwayat_target.dart';
 
 /// Layar utama dashboard aplikasi Kelola Uang
 class LayarUtama extends StatefulWidget {
@@ -23,6 +25,7 @@ class _LayarUtamaState extends State<LayarUtama> {
   List<ModelTransaksi> _daftarTransaksi = [];
   ModelTarget? _taskTarget;
   ModelEstimasiTarget? _estimasiTarget;
+  int _jumlahTargetTercapai = 0;
 
   bool _sedangMemuat = true;
 
@@ -36,6 +39,7 @@ class _LayarUtamaState extends State<LayarUtama> {
   Future<void> _muatData() async {
     final transaksi = await _layananPenyimpanan.ambilSemuaTransaksi();
     final target = await _layananPenyimpanan.ambilTaskTarget();
+    final riwayatTercapai = await _layananPenyimpanan.ambilSemuaTargetTercapai();
 
     ModelEstimasiTarget? estimasi;
     if (target != null) {
@@ -50,6 +54,7 @@ class _LayarUtamaState extends State<LayarUtama> {
         _daftarTransaksi = transaksi;
         _taskTarget = target;
         _estimasiTarget = estimasi;
+        _jumlahTargetTercapai = riwayatTercapai.length;
         _sedangMemuat = false;
       });
     }
@@ -221,6 +226,62 @@ class _LayarUtamaState extends State<LayarUtama> {
     ).then((_) => _muatData());
   }
 
+  /// Menyimpan target belanja yang telah terpenuhi beserta tanggalnya
+  Future<void> _simpanTargetTercapai() async {
+    if (_taskTarget == null) return;
+    final sekarang = DateTime.now();
+    final targetSelesai = ModelTargetTercapai(
+      idTarget: sekarang.millisecondsSinceEpoch.toString(),
+      namaTarget: _taskTarget!.namaTarget,
+      jumlahTarget: _taskTarget!.jumlahTarget,
+      tanggalDibuat: _taskTarget!.tanggalDibuat,
+      tanggalTercapai: sekarang,
+      keterangan: 'Tercapai dengan saldo ${FormatUang.keRupiah(_estimasiTarget?.totalUangSaatIni ?? _taskTarget!.jumlahTarget)}',
+    );
+
+    await _layananPenyimpanan.simpanTargetTercapai(targetSelesai);
+    await _muatData();
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (konteks) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.emoji_events_rounded, color: Colors.amber, size: 28),
+            SizedBox(width: 8),
+            Text('Target Tercapai!'),
+          ],
+        ),
+        content: Text(
+          'Selamat! Target "${targetSelesai.namaTarget}" (${FormatUang.keRupiah(targetSelesai.jumlahTarget)}) telah berhasil disimpan pada ${FormatUang.keTanggalLengkap(sekarang)}.\n\nTarget aktif telah diarsipkan dan kamu sekarang bisa membuat target belanja baru!',
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+            onPressed: () => Navigator.pop(konteks),
+            child: const Text('Tutup', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Membuka lembar riwayat target yang pernah tercapai
+  void _bukaLayarRiwayatTarget() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (konteks) => LayarRiwayatTarget(
+        saatDataBerubah: _muatData,
+      ),
+    );
+  }
+
   /// Mereset semua transaksi
   Future<void> _aksiResetSemuaData() async {
     final konfirmasi = await showDialog<bool>(
@@ -306,11 +367,23 @@ class _LayarUtamaState extends State<LayarUtama> {
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert, color: Colors.black54),
             onSelected: (nilai) {
-              if (nilai == 'hapus_semua') {
+              if (nilai == 'target_tercapai') {
+                _bukaLayarRiwayatTarget();
+              } else if (nilai == 'hapus_semua') {
                 _aksiResetSemuaData();
               }
             },
             itemBuilder: (konteks) => [
+              PopupMenuItem(
+                value: 'target_tercapai',
+                child: Row(
+                  children: [
+                    const Icon(Icons.military_tech_rounded, size: 18, color: Colors.amber),
+                    const SizedBox(width: 8),
+                    Text('Target Tercapai ($_jumlahTargetTercapai)'),
+                  ],
+                ),
+              ),
               const PopupMenuItem(
                 value: 'hapus_semua',
                 child: Row(
@@ -482,10 +555,13 @@ class _LayarUtamaState extends State<LayarUtama> {
                     KartuTaskTarget(
                       taskTarget: _taskTarget,
                       estimasi: _estimasiTarget,
+                      jumlahTargetTercapai: _jumlahTargetTercapai,
                       saatDitekanBuatTarget: _bukaModalAturTarget,
                       saatDitekanUbahTarget: _bukaModalAturTarget,
                       saatDitekanHapusTarget: _konfirmasiHapusTarget,
                       saatDitekanHitungUlang: _hitungUlangPencapaianTarget,
+                      saatDitekanSimpanTargetTercapai: _simpanTargetTercapai,
+                      saatDitekanLihatRiwayatTarget: _bukaLayarRiwayatTarget,
                     ),
 
                     // 3. DUA TOMBOL CATAT TRANSAKSI (TAMBAH PEMASUKAN & TAMBAH PENGELUARAN) + CEK RIWAYAT

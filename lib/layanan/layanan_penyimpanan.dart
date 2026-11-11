@@ -2,12 +2,14 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../model/model_transaksi.dart';
 import '../model/model_target.dart';
+import '../model/model_target_tercapai.dart';
 import '../model/model_estimasi_target.dart';
 
 /// Layanan untuk mengelola penyimpanan data lokal secara offline dan gratis
 class LayananPenyimpanan {
   static const String _kunciDaftarTransaksi = 'kunci_daftar_transaksi';
   static const String _kunciTaskTarget = 'kunci_task_target';
+  static const String _kunciTargetTercapai = 'kunci_target_tercapai';
 
   // ========================================================================
   // CRUD TRANSAKSI (CREATE, READ, UPDATE, DELETE)
@@ -103,10 +105,55 @@ class LayananPenyimpanan {
     return await preferensi.setString(_kunciTaskTarget, targetBaru.keJson());
   }
 
-  /// Menghapus target belanja
+  /// Menghapus target belanja aktif
   Future<bool> hapusTaskTarget() async {
     final preferensi = await SharedPreferences.getInstance();
     return await preferensi.remove(_kunciTaskTarget);
+  }
+
+  // ========================================================================
+  // RIWAYAT TARGET BELANJA YANG TELAH TERPENUHI
+  // ========================================================================
+
+  /// Mengambil semua target belanja yang telah terpenuhi
+  Future<List<ModelTargetTercapai>> ambilSemuaTargetTercapai() async {
+    final preferensi = await SharedPreferences.getInstance();
+    final String? dataMentah = preferensi.getString(_kunciTargetTercapai);
+    if (dataMentah == null || dataMentah.isEmpty) return [];
+
+    try {
+      final List<dynamic> daftarJson = json.decode(dataMentah);
+      final hasil = daftarJson
+          .map((item) => ModelTargetTercapai.dariMap(item as Map<String, dynamic>))
+          .toList();
+      hasil.sort((a, b) => b.tanggalTercapai.compareTo(a.tanggalTercapai));
+      return hasil;
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// Menyimpan target yang sudah terpenuhi dan menghapus target aktif
+  Future<void> simpanTargetTercapai(ModelTargetTercapai targetTercapai) async {
+    final daftar = await ambilSemuaTargetTercapai();
+    daftar.insert(0, targetTercapai);
+
+    final preferensi = await SharedPreferences.getInstance();
+    final String dataTeks = json.encode(daftar.map((item) => item.keMap()).toList());
+    await preferensi.setString(_kunciTargetTercapai, dataTeks);
+
+    // Hapus target aktif karena sudah berhasil dicapai dan diarsipkan
+    await hapusTaskTarget();
+  }
+
+  /// Menghapus riwayat target tercapai berdasarkan ID
+  Future<void> hapusRiwayatTargetTercapai(String idTarget) async {
+    final daftar = await ambilSemuaTargetTercapai();
+    daftar.removeWhere((item) => item.idTarget == idTarget);
+
+    final preferensi = await SharedPreferences.getInstance();
+    final String dataTeks = json.encode(daftar.map((item) => item.keMap()).toList());
+    await preferensi.setString(_kunciTargetTercapai, dataTeks);
   }
 
   // ========================================================================

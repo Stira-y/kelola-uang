@@ -57,11 +57,11 @@ class _LayarAturTargetState extends State<LayarAturTarget> {
 
   /// Menghitung estimasi awal untuk ditampilkan sebagai pratinjau langsung
   String _hitungPratinjauEstimasi() {
-    final double? target = double.tryParse(_pengontrolJumlahTarget.text.trim());
-    final double? pendapatan = double.tryParse(_pengontrolPendapatanTetap.text.trim());
+    final double? target = FormatUang.uraikanNominal(_pengontrolJumlahTarget.text.trim());
+    final double? pendapatan = FormatUang.uraikanNominal(_pengontrolPendapatanTetap.text.trim());
 
     if (target == null || target <= 0 || pendapatan == null || pendapatan <= 0) {
-      return 'Masukkan nominal target dan pendapatan yang valid untuk melihat estimasi.';
+      return 'Masukkan nominal target dan pendapatan yang valid (bisa ketik misal: 500k atau 500.000).';
     }
 
     double lajuMingguan = pendapatan;
@@ -78,13 +78,13 @@ class _LayarAturTargetState extends State<LayarAturTarget> {
         ? 'hari'
         : (_tipePeriodeDipilih == TipePeriodeTarget.mingguan ? 'minggu' : 'bulan');
 
-    return 'Dengan pendapatan ${FormatUang.keFormatSingkat(pendapatan)}/$namaPeriode, kamu memerlukan sekitar ${minggu.toStringAsFixed(1)} minggu (~${bulan.toStringAsFixed(1)} bulan) untuk mencapai target ${FormatUang.keFormatSingkat(target)}.';
+    return 'Dengan pendapatan ${FormatUang.keFormatTitik(pendapatan)}/$namaPeriode, kamu memerlukan sekitar ${minggu.toStringAsFixed(1)} minggu (~${bulan.toStringAsFixed(1)} bulan) untuk mencapai target ${FormatUang.keRupiah(target)}.';
   }
 
   void _simpan() {
     final String nama = _pengontrolNama.text.trim();
-    final double? jumlahTarget = double.tryParse(_pengontrolJumlahTarget.text.trim());
-    final double? pendapatan = double.tryParse(_pengontrolPendapatanTetap.text.trim());
+    final double? jumlahTarget = FormatUang.uraikanNominal(_pengontrolJumlahTarget.text.trim());
+    final double? pendapatan = FormatUang.uraikanNominal(_pengontrolPendapatanTetap.text.trim());
 
     if (nama.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(

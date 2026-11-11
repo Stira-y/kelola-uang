@@ -96,7 +96,7 @@ class _LayarTambahTransaksiState extends State<LayarTambahTransaksi> {
 
   void _simpanTransaksi() {
     if (_formKunci.currentState!.validate()) {
-      final double jumlah = double.parse(_pengontrolJumlah.text.trim());
+      final double jumlah = FormatUang.uraikanNominal(_pengontrolJumlah.text.trim())!;
       final edit = widget.transaksiUntukDiedit;
 
       final transaksiHasil = ModelTransaksi(
@@ -221,11 +221,12 @@ class _LayarTambahTransaksiState extends State<LayarTambahTransaksi> {
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _pengontrolJumlah,
-                  keyboardType: TextInputType.number,
+                  keyboardType: TextInputType.text,
                   style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
                     prefixIcon: const Icon(Icons.money_rounded, color: Colors.teal),
-                    hintText: 'Contoh: 50000',
+                    hintText: 'Contoh: 50.000 atau 50k',
                     filled: true,
                     fillColor: Colors.white,
                     border: OutlineInputBorder(
@@ -234,15 +235,38 @@ class _LayarTambahTransaksiState extends State<LayarTambahTransaksi> {
                     ),
                   ),
                   validator: (nilai) {
-                    if (nilai == null || nilai.isEmpty) {
+                    if (nilai == null || nilai.trim().isEmpty) {
                       return 'Harap masukkan nominal uang';
                     }
-                    if (double.tryParse(nilai) == null || double.parse(nilai) <= 0) {
-                      return 'Nominal uang harus lebih dari 0';
+                    final nominalTerurai = FormatUang.uraikanNominal(nilai);
+                    if (nominalTerurai == null || nominalTerurai <= 0) {
+                      return 'Nominal uang tidak valid (contoh: 50.000 atau 50k)';
                     }
                     return null;
                   },
                 ),
+                // Pratinjau langsung format Rupiah jika mengetik 'k' atau angka
+                if (_pengontrolJumlah.text.isNotEmpty) ...[
+                  Builder(
+                    builder: (konteks) {
+                      final nominalTerurai = FormatUang.uraikanNominal(_pengontrolJumlah.text);
+                      if (nominalTerurai != null && nominalTerurai > 0) {
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 6, left: 6),
+                          child: Text(
+                            '= ${FormatUang.keRupiah(nominalTerurai)} (${FormatUang.keFormatTitik(nominalTerurai)})',
+                            style: TextStyle(
+                              color: Colors.teal.shade800,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
+                ],
 
                 const SizedBox(height: 16),
 
