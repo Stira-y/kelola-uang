@@ -61,14 +61,14 @@ class _LayarTambahTransaksiState extends State<LayarTambahTransaksi> {
       _tanggalDipilih = edit.tanggalTransaksi;
       _kategoriDipilih = edit.kategoriTransaksi;
     } else {
-      _pengontrolJudul = TextEditingController();
-      _pengontrolJumlah = TextEditingController();
-      _pengontrolCatatan = TextEditingController();
       _jenisDipilih = widget.jenisTransaksiAwal;
       _tanggalDipilih = DateTime.now();
       _kategoriDipilih = _jenisDipilih == JenisTransaksi.pengeluaran
           ? _daftarKategoriPengeluaran.first
           : _daftarKategoriPemasukan.first;
+      _pengontrolJudul = TextEditingController(text: _kategoriDipilih);
+      _pengontrolJumlah = TextEditingController();
+      _pengontrolCatatan = TextEditingController();
     }
   }
 
@@ -159,6 +159,7 @@ class _LayarTambahTransaksiState extends State<LayarTambahTransaksi> {
                             setState(() {
                               _jenisDipilih = JenisTransaksi.pengeluaran;
                               _kategoriDipilih = _daftarKategoriPengeluaran.first;
+                              _pengontrolJudul.text = _kategoriDipilih;
                             });
                           },
                           child: Container(
@@ -185,6 +186,7 @@ class _LayarTambahTransaksiState extends State<LayarTambahTransaksi> {
                             setState(() {
                               _jenisDipilih = JenisTransaksi.pemasukan;
                               _kategoriDipilih = _daftarKategoriPemasukan.first;
+                              _pengontrolJudul.text = _kategoriDipilih;
                             });
                           },
                           child: Container(
@@ -305,6 +307,7 @@ class _LayarTambahTransaksiState extends State<LayarTambahTransaksi> {
                         if (terpilih) {
                           setState(() {
                             _kategoriDipilih = kategori;
+                            _pengontrolJudul.text = kategori;
                           });
                         }
                       },
