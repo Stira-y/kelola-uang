@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import '../model/model_target.dart';
 import '../utilitas/format_uang.dart';
 
-/// Tampilan lembar bawah (bottom sheet) untuk mengubah task target anggaran
+/// Lembar bawah untuk membuat atau mengubah Target Belanja
+/// Disertai estimasi otomatis pencapaian berdasarkan pendapatan tetap
 class LayarAturTarget extends StatefulWidget {
-  final ModelTarget targetSaatIni;
+  final ModelTarget? targetSaatIni;
   final Function(ModelTarget targetBaru) saatDisimpan;
 
   const LayarAturTarget({
@@ -19,61 +20,99 @@ class LayarAturTarget extends StatefulWidget {
 
 class _LayarAturTargetState extends State<LayarAturTarget> {
   late TextEditingController _pengontrolNama;
-  late TextEditingController _pengontrolJumlah;
+  late TextEditingController _pengontrolJumlahTarget;
+  late TextEditingController _pengontrolPendapatanTetap;
   late TextEditingController _pengontrolKeterangan;
 
-  // Pilihan cepat jumlah target
-  final List<double> _pilihanCepat = [
-    200000,
-    300000,
-    500000,
-    1000000,
-    2000000,
-  ];
+  TipePeriodeTarget _tipePeriodeDipilih = TipePeriodeTarget.mingguan;
+
+  // Preset jumlah target cepat
+  final List<double> _presetTarget = [200000, 300000, 500000, 1000000, 2000000];
+  // Preset pendapatan cepat
+  final List<double> _presetPendapatan = [20000, 50000, 100000, 250000, 500000];
 
   @override
   void initState() {
     super.initState();
-    _pengontrolNama = TextEditingController(text: widget.targetSaatIni.namaTarget);
-    _pengontrolJumlah = TextEditingController(
-      text: widget.targetSaatIni.jumlahTarget.toStringAsFixed(0),
+    final t = widget.targetSaatIni;
+    _pengontrolNama = TextEditingController(text: t?.namaTarget ?? 'Target Belanja');
+    _pengontrolJumlahTarget = TextEditingController(
+      text: t != null ? t.jumlahTarget.toStringAsFixed(0) : '500000',
     );
-    _pengontrolKeterangan = TextEditingController(
-      text: widget.targetSaatIni.keteranganTarget,
+    _tipePeriodeDipilih = t?.tipePeriode ?? TipePeriodeTarget.mingguan;
+    _pengontrolPendapatanTetap = TextEditingController(
+      text: t != null ? t.pendapatanTetap.toStringAsFixed(0) : '50000',
     );
+    _pengontrolKeterangan = TextEditingController(text: t?.keteranganTarget ?? '');
   }
 
   @override
   void dispose() {
     _pengontrolNama.dispose();
-    _pengontrolJumlah.dispose();
+    _pengontrolJumlahTarget.dispose();
+    _pengontrolPendapatanTetap.dispose();
     _pengontrolKeterangan.dispose();
     super.dispose();
   }
 
-  void _simpanPengaturanTarget() {
+  /// Menghitung estimasi awal untuk ditampilkan sebagai pratinjau langsung
+  String _hitungPratinjauEstimasi() {
+    final double? target = double.tryParse(_pengontrolJumlahTarget.text.trim());
+    final double? pendapatan = double.tryParse(_pengontrolPendapatanTetap.text.trim());
+
+    if (target == null || target <= 0 || pendapatan == null || pendapatan <= 0) {
+      return 'Masukkan nominal target dan pendapatan yang valid untuk melihat estimasi.';
+    }
+
+    double lajuMingguan = pendapatan;
+    if (_tipePeriodeDipilih == TipePeriodeTarget.harian) {
+      lajuMingguan = pendapatan * 7;
+    } else if (_tipePeriodeDipilih == TipePeriodeTarget.bulanan) {
+      lajuMingguan = pendapatan / 4.33;
+    }
+
+    final double minggu = target / lajuMingguan;
+    final double bulan = minggu / 4.33;
+
+    final String namaPeriode = _tipePeriodeDipilih == TipePeriodeTarget.harian
+        ? 'hari'
+        : (_tipePeriodeDipilih == TipePeriodeTarget.mingguan ? 'minggu' : 'bulan');
+
+    return 'Dengan pendapatan ${FormatUang.keFormatSingkat(pendapatan)}/$namaPeriode, kamu memerlukan sekitar ${minggu.toStringAsFixed(1)} minggu (~${bulan.toStringAsFixed(1)} bulan) untuk mencapai target ${FormatUang.keFormatSingkat(target)}.';
+  }
+
+  void _simpan() {
     final String nama = _pengontrolNama.text.trim();
-    final double? jumlah = double.tryParse(_pengontrolJumlah.text.trim());
-    final String keterangan = _pengontrolKeterangan.text.trim();
+    final double? jumlahTarget = double.tryParse(_pengontrolJumlahTarget.text.trim());
+    final double? pendapatan = double.tryParse(_pengontrolPendapatanTetap.text.trim());
 
     if (nama.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nama target tidak boleh kosong')),
+        const SnackBar(content: Text('Nama target belanja tidak boleh kosong')),
       );
       return;
     }
 
-    if (jumlah == null || jumlah <= 0) {
+    if (jumlahTarget == null || jumlahTarget <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Masukkan jumlah target yang valid')),
+        const SnackBar(content: Text('Nominal target harus lebih dari 0')),
+      );
+      return;
+    }
+
+    if (pendapatan == null || pendapatan <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nominal pendapatan tetap harus lebih dari 0')),
       );
       return;
     }
 
     final targetBaru = ModelTarget(
       namaTarget: nama,
-      jumlahTarget: jumlah,
-      keteranganTarget: keterangan,
+      jumlahTarget: jumlahTarget,
+      tipePeriode: _tipePeriodeDipilih,
+      pendapatanTetap: pendapatan,
+      keteranganTarget: _pengontrolKeterangan.text.trim(),
     );
 
     widget.saatDisimpan(targetBaru);
@@ -87,7 +126,7 @@ class _LayarAturTargetState extends State<LayarAturTarget> {
         left: 20,
         right: 20,
         top: 20,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
       ),
       child: SingleChildScrollView(
         child: Column(
@@ -97,12 +136,9 @@ class _LayarAturTargetState extends State<LayarAturTarget> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Atur Task Target Anggaran',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                Text(
+                  widget.targetSaatIni == null ? 'Buat Target Belanja' : 'Ubah Target Belanja',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 IconButton(
                   icon: const Icon(Icons.close),
@@ -111,86 +147,212 @@ class _LayarAturTargetState extends State<LayarAturTarget> {
               ],
             ),
             const Divider(),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
 
             // Nama Target
             const Text(
-              'Nama Task Target',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+              'Nama Target Belanja',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
             ),
             const SizedBox(height: 6),
             TextField(
               controller: _pengontrolNama,
               decoration: InputDecoration(
-                hintText: 'Contoh: Batas Belanja Mingguan / Target 500k',
+                hintText: 'Contoh: Beli Sepatu / Target 500k',
                 filled: true,
                 fillColor: Colors.grey.shade100,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
                 ),
-                prefixIcon: const Icon(Icons.flag_outlined, color: Colors.teal),
+                prefixIcon: const Icon(Icons.flag_rounded, color: Colors.teal),
               ),
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
 
             // Jumlah Target
             const Text(
-              'Jumlah Target (Rp)',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+              'Nominal Target Belanja (Rp)',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
             ),
             const SizedBox(height: 6),
             TextField(
-              controller: _pengontrolJumlah,
+              controller: _pengontrolJumlahTarget,
               keyboardType: TextInputType.number,
+              onChanged: (_) => setState(() {}),
               decoration: InputDecoration(
-                hintText: '500000',
+                hintText: 'Contoh: 500000',
                 filled: true,
                 fillColor: Colors.grey.shade100,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
                 ),
-                prefixIcon: const Icon(Icons.monetization_on_outlined, color: Colors.teal),
+                prefixIcon: const Icon(Icons.monetization_on_rounded, color: Colors.teal),
               ),
             ),
-
-            const SizedBox(height: 10),
-
-            // Pilihan Cepat Jumlah
+            const SizedBox(height: 6),
             Wrap(
-              spacing: 8,
-              children: _pilihanCepat.map((nilai) {
+              spacing: 6,
+              children: _presetTarget.map((nilai) {
                 return ActionChip(
                   label: Text(FormatUang.keFormatSingkat(nilai)),
                   backgroundColor: Colors.teal.shade50,
-                  labelStyle: const TextStyle(
-                    color: Colors.teal,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12,
-                  ),
+                  labelStyle: const TextStyle(color: Colors.teal, fontSize: 11, fontWeight: FontWeight.w600),
                   onPressed: () {
                     setState(() {
-                      _pengontrolJumlah.text = nilai.toStringAsFixed(0);
+                      _pengontrolJumlahTarget.text = nilai.toStringAsFixed(0);
                     });
                   },
                 );
               }).toList(),
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
 
-            // Keterangan
+            // Frekuensi Pendapatan Tetap
             const Text(
-              'Catatan Tambahan (Opsional)',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+              'Frekuensi Pendapatan Tetap',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: ChoiceChip(
+                    label: const Center(child: Text('Harian')),
+                    selected: _tipePeriodeDipilih == TipePeriodeTarget.harian,
+                    selectedColor: Colors.teal,
+                    labelStyle: TextStyle(
+                      color: _tipePeriodeDipilih == TipePeriodeTarget.harian ? Colors.white : Colors.black87,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    onSelected: (terpilih) {
+                      if (terpilih) setState(() => _tipePeriodeDipilih = TipePeriodeTarget.harian);
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ChoiceChip(
+                    label: const Center(child: Text('Mingguan')),
+                    selected: _tipePeriodeDipilih == TipePeriodeTarget.mingguan,
+                    selectedColor: Colors.teal,
+                    labelStyle: TextStyle(
+                      color: _tipePeriodeDipilih == TipePeriodeTarget.mingguan ? Colors.white : Colors.black87,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    onSelected: (terpilih) {
+                      if (terpilih) setState(() => _tipePeriodeDipilih = TipePeriodeTarget.mingguan);
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ChoiceChip(
+                    label: const Center(child: Text('Bulanan')),
+                    selected: _tipePeriodeDipilih == TipePeriodeTarget.bulanan,
+                    selectedColor: Colors.teal,
+                    labelStyle: TextStyle(
+                      color: _tipePeriodeDipilih == TipePeriodeTarget.bulanan ? Colors.white : Colors.black87,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    onSelected: (terpilih) {
+                      if (terpilih) setState(() => _tipePeriodeDipilih = TipePeriodeTarget.bulanan);
+                    },
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 14),
+
+            // Nominal Pendapatan Tetap
+            Text(
+              'Nominal Pendapatan Tetap (${_tipePeriodeDipilih == TipePeriodeTarget.harian ? 'per Hari' : (_tipePeriodeDipilih == TipePeriodeTarget.mingguan ? 'per Minggu' : 'per Bulan')})',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _pengontrolPendapatanTetap,
+              keyboardType: TextInputType.number,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                hintText: 'Contoh: 50000',
+                filled: true,
+                fillColor: Colors.grey.shade100,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                prefixIcon: const Icon(Icons.savings_rounded, color: Colors.teal),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              children: _presetPendapatan.map((nilai) {
+                return ActionChip(
+                  label: Text(FormatUang.keFormatSingkat(nilai)),
+                  backgroundColor: Colors.teal.shade50,
+                  labelStyle: const TextStyle(color: Colors.teal, fontSize: 11, fontWeight: FontWeight.w600),
+                  onPressed: () {
+                    setState(() {
+                      _pengontrolPendapatanTetap.text = nilai.toStringAsFixed(0);
+                    });
+                  },
+                );
+              }).toList(),
+            ),
+
+            const SizedBox(height: 14),
+
+            // Kotak Pratinjau Estimasi Otomatis
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.teal.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.teal.shade200),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.calculate_rounded, color: Colors.teal, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Estimasi Pencapaian Otomatis',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.teal),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _hitungPratinjauEstimasi(),
+                          style: TextStyle(fontSize: 12, color: Colors.teal.shade900),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 14),
+
+            // Catatan
+            const Text(
+              'Catatan / Keterangan (Opsional)',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
             ),
             const SizedBox(height: 6),
             TextField(
               controller: _pengontrolKeterangan,
               decoration: InputDecoration(
-                hintText: 'Contoh: Agar tidak boros di akhir bulan',
+                hintText: 'Contoh: Alokasi uang saku setiap minggu',
                 filled: true,
                 fillColor: Colors.grey.shade100,
                 border: OutlineInputBorder(
@@ -201,25 +363,20 @@ class _LayarAturTargetState extends State<LayarAturTarget> {
               ),
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 22),
 
             // Tombol Simpan
             SizedBox(
               width: double.infinity,
               height: 48,
               child: ElevatedButton(
-                onPressed: _simpanPengaturanTarget,
+                onPressed: _simpan,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.teal,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                child: const Text(
-                  'Simpan Target',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
+                child: const Text('Simpan Target Belanja', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
               ),
             ),
           ],
@@ -228,4 +385,3 @@ class _LayarAturTargetState extends State<LayarAturTarget> {
     );
   }
 }
-

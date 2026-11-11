@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import '../model/model_transaksi.dart';
 import '../utilitas/format_uang.dart';
 
-/// Layar untuk menambahkan catatan transaksi baru (Pemasukan / Pengeluaran)
+/// Layar untuk menambah atau mengubah catatan transaksi (Pemasukan / Pengeluaran)
 class LayarTambahTransaksi extends StatefulWidget {
-  final Function(ModelTransaksi transaksiBaru) saatDisimpan;
+  final ModelTransaksi? transaksiUntukDiedit;
+  final JenisTransaksi jenisTransaksiAwal;
+  final Function(ModelTransaksi transaksi) saatDisimpan;
 
   const LayarTambahTransaksi({
     super.key,
+    this.transaksiUntukDiedit,
+    this.jenisTransaksiAwal = JenisTransaksi.pengeluaran,
     required this.saatDisimpan,
   });
 
@@ -17,12 +21,12 @@ class LayarTambahTransaksi extends StatefulWidget {
 
 class _LayarTambahTransaksiState extends State<LayarTambahTransaksi> {
   final _formKunci = GlobalKey<FormState>();
-  final _pengontrolJudul = TextEditingController();
-  final _pengontrolJumlah = TextEditingController();
-  final _pengontrolCatatan = TextEditingController();
+  late TextEditingController _pengontrolJudul;
+  late TextEditingController _pengontrolJumlah;
+  late TextEditingController _pengontrolCatatan;
 
-  JenisTransaksi _jenisDipilih = JenisTransaksi.pengeluaran;
-  DateTime _tanggalDipilih = DateTime.now();
+  late JenisTransaksi _jenisDipilih;
+  late DateTime _tanggalDipilih;
   late String _kategoriDipilih;
 
   final List<String> _daftarKategoriPengeluaran = [
@@ -48,7 +52,24 @@ class _LayarTambahTransaksiState extends State<LayarTambahTransaksi> {
   @override
   void initState() {
     super.initState();
-    _kategoriDipilih = _daftarKategoriPengeluaran.first;
+    final edit = widget.transaksiUntukDiedit;
+    if (edit != null) {
+      _pengontrolJudul = TextEditingController(text: edit.judulTransaksi);
+      _pengontrolJumlah = TextEditingController(text: edit.jumlahUang.toStringAsFixed(0));
+      _pengontrolCatatan = TextEditingController(text: edit.catatanTambahan);
+      _jenisDipilih = edit.jenisTransaksi;
+      _tanggalDipilih = edit.tanggalTransaksi;
+      _kategoriDipilih = edit.kategoriTransaksi;
+    } else {
+      _pengontrolJudul = TextEditingController();
+      _pengontrolJumlah = TextEditingController();
+      _pengontrolCatatan = TextEditingController();
+      _jenisDipilih = widget.jenisTransaksiAwal;
+      _tanggalDipilih = DateTime.now();
+      _kategoriDipilih = _jenisDipilih == JenisTransaksi.pengeluaran
+          ? _daftarKategoriPengeluaran.first
+          : _daftarKategoriPemasukan.first;
+    }
   }
 
   @override
@@ -64,7 +85,7 @@ class _LayarTambahTransaksiState extends State<LayarTambahTransaksi> {
       context: konteks,
       initialDate: _tanggalDipilih,
       firstDate: DateTime(2020),
-      lastDate: DateTime(2030),
+      lastDate: DateTime(2035),
     );
     if (hasilTanggal != null) {
       setState(() {
@@ -76,8 +97,10 @@ class _LayarTambahTransaksiState extends State<LayarTambahTransaksi> {
   void _simpanTransaksi() {
     if (_formKunci.currentState!.validate()) {
       final double jumlah = double.parse(_pengontrolJumlah.text.trim());
-      final transaksiBaru = ModelTransaksi(
-        idTransaksi: DateTime.now().millisecondsSinceEpoch.toString(),
+      final edit = widget.transaksiUntukDiedit;
+
+      final transaksiHasil = ModelTransaksi(
+        idTransaksi: edit != null ? edit.idTransaksi : DateTime.now().millisecondsSinceEpoch.toString(),
         judulTransaksi: _pengontrolJudul.text.trim(),
         jumlahUang: jumlah,
         jenisTransaksi: _jenisDipilih,
@@ -86,23 +109,29 @@ class _LayarTambahTransaksiState extends State<LayarTambahTransaksi> {
         catatanTambahan: _pengontrolCatatan.text.trim(),
       );
 
-      widget.saatDisimpan(transaksiBaru);
+      widget.saatDisimpan(transaksiHasil);
       Navigator.pop(context);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final adalahModeEdit = widget.transaksiUntukDiedit != null;
     final daftarKategoriAktif = _jenisDipilih == JenisTransaksi.pengeluaran
         ? _daftarKategoriPengeluaran
         : _daftarKategoriPemasukan;
 
+    // Pastikan kategori yang terpilih valid di daftar kategori saat ini
+    if (!daftarKategoriAktif.contains(_kategoriDipilih)) {
+      _kategoriDipilih = daftarKategoriAktif.first;
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
-        title: const Text(
-          'Tambah Catatan Keuangan',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        title: Text(
+          adalahModeEdit ? 'Ubah Catatan Transaksi' : (_jenisDipilih == JenisTransaksi.pemasukan ? 'Tambah Pemasukan' : 'Tambah Pengeluaran'),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
         backgroundColor: Colors.white,
         elevation: 0,
@@ -116,7 +145,7 @@ class _LayarTambahTransaksiState extends State<LayarTambahTransaksi> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Pilihan Tab Jenis Transaksi (Pengeluaran vs Pemasukan)
+                // Pilihan Tab Jenis Transaksi
                 Container(
                   decoration: BoxDecoration(
                     color: Colors.grey.shade200,
@@ -135,18 +164,14 @@ class _LayarTambahTransaksiState extends State<LayarTambahTransaksi> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             decoration: BoxDecoration(
-                              color: _jenisDipilih == JenisTransaksi.pengeluaran
-                                  ? Colors.redAccent
-                                  : Colors.transparent,
+                              color: _jenisDipilih == JenisTransaksi.pengeluaran ? Colors.redAccent : Colors.transparent,
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Center(
                               child: Text(
                                 'Pengeluaran',
                                 style: TextStyle(
-                                  color: _jenisDipilih == JenisTransaksi.pengeluaran
-                                      ? Colors.white
-                                      : Colors.black87,
+                                  color: _jenisDipilih == JenisTransaksi.pengeluaran ? Colors.white : Colors.black87,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
@@ -165,18 +190,14 @@ class _LayarTambahTransaksiState extends State<LayarTambahTransaksi> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             decoration: BoxDecoration(
-                              color: _jenisDipilih == JenisTransaksi.pemasukan
-                                  ? Colors.green
-                                  : Colors.transparent,
+                              color: _jenisDipilih == JenisTransaksi.pemasukan ? Colors.green : Colors.transparent,
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Center(
                               child: Text(
                                 'Pemasukan',
                                 style: TextStyle(
-                                  color: _jenisDipilih == JenisTransaksi.pemasukan
-                                      ? Colors.white
-                                      : Colors.black87,
+                                  color: _jenisDipilih == JenisTransaksi.pemasukan ? Colors.white : Colors.black87,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
@@ -212,7 +233,7 @@ class _LayarTambahTransaksiState extends State<LayarTambahTransaksi> {
                   ),
                   validator: (nilai) {
                     if (nilai == null || nilai.isEmpty) {
-                      return 'Harap masukkan jumlah nominal';
+                      return 'Harap masukkan nominal uang';
                     }
                     if (double.tryParse(nilai) == null || double.parse(nilai) <= 0) {
                       return 'Nominal uang harus lebih dari 0';
@@ -233,7 +254,7 @@ class _LayarTambahTransaksiState extends State<LayarTambahTransaksi> {
                   controller: _pengontrolJudul,
                   decoration: InputDecoration(
                     prefixIcon: const Icon(Icons.edit_note_rounded, color: Colors.teal),
-                    hintText: 'Contoh: Sarapan Pagi / Beli Bensin',
+                    hintText: 'Contoh: Sarapan Pagi / Uang Saku',
                     filled: true,
                     fillColor: Colors.white,
                     border: OutlineInputBorder(
@@ -367,9 +388,9 @@ class _LayarTambahTransaksiState extends State<LayarTambahTransaksi> {
                       ),
                       elevation: 2,
                     ),
-                    child: const Text(
-                      'Simpan Catatan',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    child: Text(
+                      adalahModeEdit ? 'Simpan Perubahan' : 'Simpan Catatan',
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
@@ -381,4 +402,3 @@ class _LayarTambahTransaksiState extends State<LayarTambahTransaksi> {
     );
   }
 }
-

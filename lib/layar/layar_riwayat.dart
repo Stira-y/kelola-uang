@@ -2,19 +2,16 @@ import 'package:flutter/material.dart';
 import '../model/model_transaksi.dart';
 import '../layanan/layanan_penyimpanan.dart';
 import '../utilitas/format_uang.dart';
+import 'layar_tambah_transaksi.dart';
 
-/// Layar untuk melihat riwayat pengeluaran:
-/// - Minggu Ini
-/// - Minggu Sebelumnya
-/// - Selama 1 Bulan (30 Hari)
+/// Layar riwayat pengeluaran dengan filter Minggu Ini, Minggu Sebelumnya, dan 1 Bulan
+/// Dilengkapi fitur CRUD penuh (baca, ubah, dan hapus seketika dari tampilan)
 class LayarRiwayat extends StatefulWidget {
-  final List<ModelTransaksi> daftarSemuaTransaksi;
-  final Function(String idTransaksi) saatHapusTransaksi;
+  final VoidCallback? saatDataBerubah;
 
   const LayarRiwayat({
     super.key,
-    required this.daftarSemuaTransaksi,
-    required this.saatHapusTransaksi,
+    this.saatDataBerubah,
   });
 
   @override
@@ -25,16 +22,73 @@ class _LayarRiwayatState extends State<LayarRiwayat> with SingleTickerProviderSt
   late TabController _pengontrolTab;
   final LayananPenyimpanan _layananPenyimpanan = LayananPenyimpanan();
 
+  List<ModelTransaksi> _daftarTransaksi = [];
+  bool _sedangMemuat = true;
+
   @override
   void initState() {
     super.initState();
     _pengontrolTab = TabController(length: 3, vsync: this);
+    _muatDataRiwayat();
   }
 
   @override
   void dispose() {
     _pengontrolTab.dispose();
     super.dispose();
+  }
+
+  /// Memuat data transaksi langsung dari penyimpanan lokal
+  Future<void> _muatDataRiwayat() async {
+    final data = await _layananPenyimpanan.ambilSemuaTransaksi();
+    if (mounted) {
+      setState(() {
+        _daftarTransaksi = data;
+        _sedangMemuat = false;
+      });
+    }
+  }
+
+  /// Menghapus transaksi dan langsung memperbarui tampilan seketika (DELETE)
+  Future<void> _hapusCatatan(ModelTransaksi transaksi) async {
+    await _layananPenyimpanan.hapusTransaksi(transaksi.idTransaksi);
+    // Langsung hapus dari daftar lokal di memori agar UI terupdate seketika
+    setState(() {
+      _daftarTransaksi.removeWhere((item) => item.idTransaksi == transaksi.idTransaksi);
+    });
+
+    widget.saatDataBerubah?.call();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Catatan "${transaksi.judulTransaksi}" berhasil dihapus'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  /// Mengubah catatan transaksi (UPDATE)
+  void _bukaLayarUbah(ModelTransaksi transaksi) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (konteks) => LayarTambahTransaksi(
+          transaksiUntukDiedit: transaksi,
+          saatDisimpan: (transaksiBaru) async {
+            await _layananPenyimpanan.perbaruiTransaksi(transaksiBaru);
+            await _muatDataRiwayat();
+            widget.saatDataBerubah?.call();
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Catatan berhasil diperbarui')),
+              );
+            }
+          },
+        ),
+      ),
+    );
   }
 
   /// Menampilkan dialog konfirmasi hapus transaksi
@@ -54,11 +108,8 @@ class _LayarRiwayatState extends State<LayarRiwayat> with SingleTickerProviderSt
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
             onPressed: () {
-              widget.saatHapusTransaksi(transaksi.idTransaksi);
               Navigator.pop(konteks);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Catatan berhasil dihapus')),
-              );
+              _hapusCatatan(transaksi);
             },
             child: const Text('Hapus', style: TextStyle(color: Colors.white)),
           ),
@@ -157,7 +208,7 @@ class _LayarRiwayatState extends State<LayarRiwayat> with SingleTickerProviderSt
     );
   }
 
-  /// Komponen daftar item transaksi pengeluaran
+  /// Komponen daftar item transaksi dengan tombol Ubah dan Hapus
   Widget _bangunDaftarTransaksi(List<ModelTransaksi> daftar) {
     if (daftar.isEmpty) {
       return Center(
@@ -167,7 +218,7 @@ class _LayarRiwayatState extends State<LayarRiwayat> with SingleTickerProviderSt
             Icon(Icons.receipt_long_outlined, size: 64, color: Colors.grey.shade400),
             const SizedBox(height: 12),
             Text(
-              'Belum ada pengeluaran di periode ini',
+              'Belum ada catatan pengeluaran di periode ini',
               style: TextStyle(
                 color: Colors.grey.shade600,
                 fontSize: 14,
@@ -220,7 +271,13 @@ class _LayarRiwayatState extends State<LayarRiwayat> with SingleTickerProviderSt
                   ),
                 ),
                 IconButton(
-                  icon: Icon(Icons.delete_outline, size: 18, color: Colors.grey.shade400),
+                  icon: const Icon(Icons.edit_outlined, size: 18, color: Colors.teal),
+                  tooltip: 'Ubah Catatan',
+                  onPressed: () => _bukaLayarUbah(transaksi),
+                ),
+                IconButton(
+                  icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400),
+                  tooltip: 'Hapus Catatan',
                   onPressed: () => _tampilkanDialogHapus(transaksi),
                 ),
               ],
@@ -233,10 +290,16 @@ class _LayarRiwayatState extends State<LayarRiwayat> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
-    // Pengelompokan data pengeluaran berdasarkan periode
-    final daftarMingguIni = _layananPenyimpanan.ambilPengeluaranMingguIni(widget.daftarSemuaTransaksi);
-    final daftarMingguSebelumnya = _layananPenyimpanan.ambilPengeluaranMingguSebelumnya(widget.daftarSemuaTransaksi);
-    final daftarSatuBulan = _layananPenyimpanan.ambilPengeluaranSatuBulan(widget.daftarSemuaTransaksi);
+    if (_sedangMemuat) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator(color: Colors.teal)),
+      );
+    }
+
+    // Filter pengeluaran berdasarkan periode
+    final daftarMingguIni = _layananPenyimpanan.ambilPengeluaranMingguIni(_daftarTransaksi);
+    final daftarMingguSebelumnya = _layananPenyimpanan.ambilPengeluaranMingguSebelumnya(_daftarTransaksi);
+    final daftarSatuBulan = _layananPenyimpanan.ambilPengeluaranSatuBulan(_daftarTransaksi);
 
     final totalMingguIni = _layananPenyimpanan.hitungTotalPengeluaran(daftarMingguIni);
     final totalMingguSebelumnya = _layananPenyimpanan.hitungTotalPengeluaran(daftarMingguSebelumnya);
@@ -306,4 +369,3 @@ class _LayarRiwayatState extends State<LayarRiwayat> with SingleTickerProviderSt
     );
   }
 }
-

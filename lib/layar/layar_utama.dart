@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../model/model_transaksi.dart';
 import '../model/model_target.dart';
+import '../model/model_estimasi_target.dart';
 import '../layanan/layanan_penyimpanan.dart';
 import '../komponen/kartu_task_target.dart';
 import '../utilitas/format_uang.dart';
@@ -20,11 +21,8 @@ class _LayarUtamaState extends State<LayarUtama> {
   final LayananPenyimpanan _layananPenyimpanan = LayananPenyimpanan();
 
   List<ModelTransaksi> _daftarTransaksi = [];
-  ModelTarget _taskTarget = ModelTarget(
-    namaTarget: 'Batas Belanja',
-    jumlahTarget: 500000.0,
-    keteranganTarget: 'Batas alokasi belanja',
-  );
+  ModelTarget? _taskTarget;
+  ModelEstimasiTarget? _estimasiTarget;
 
   bool _sedangMemuat = true;
 
@@ -34,23 +32,30 @@ class _LayarUtamaState extends State<LayarUtama> {
     _muatData();
   }
 
-  /// Memuat transaksi dan task target dari penyimpanan lokal
+  /// Memuat transaksi dan target belanja dari penyimpanan lokal, lalu menghitung estimasi secara otomatis
   Future<void> _muatData() async {
-    setState(() {
-      _sedangMemuat = true;
-    });
-
     final transaksi = await _layananPenyimpanan.ambilSemuaTransaksi();
     final target = await _layananPenyimpanan.ambilTaskTarget();
 
-    setState(() {
-      _daftarTransaksi = transaksi;
-      _taskTarget = target;
-      _sedangMemuat = false;
-    });
+    ModelEstimasiTarget? estimasi;
+    if (target != null) {
+      estimasi = _layananPenyimpanan.hitungEstimasiTarget(
+        target: target,
+        daftarTransaksi: transaksi,
+      );
+    }
+
+    if (mounted) {
+      setState(() {
+        _daftarTransaksi = transaksi;
+        _taskTarget = target;
+        _estimasiTarget = estimasi;
+        _sedangMemuat = false;
+      });
+    }
   }
 
-  /// Menambahkan transaksi baru dan memperbarui tampilan
+  /// Menambahkan transaksi baru (CREATE)
   Future<void> _tambahTransaksiBaru(ModelTransaksi transaksiBaru) async {
     await _layananPenyimpanan.tambahTransaksi(transaksiBaru);
     await _muatData();
@@ -64,33 +69,62 @@ class _LayarUtamaState extends State<LayarUtama> {
     }
   }
 
-  /// Menghapus transaksi dan memperbarui tampilan
-  Future<void> _hapusTransaksi(String idTransaksi) async {
-    await _layananPenyimpanan.hapusTransaksi(idTransaksi);
+  /// Mengubah transaksi yang sudah ada (UPDATE)
+  Future<void> _perbaruiTransaksi(ModelTransaksi transaksiDiperbarui) async {
+    await _layananPenyimpanan.perbaruiTransaksi(transaksiDiperbarui);
     await _muatData();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Catatan "${transaksiDiperbarui.judulTransaksi}" berhasil diperbarui'),
+          backgroundColor: Colors.teal.shade700,
+        ),
+      );
+    }
   }
 
-  /// Memuat data contoh simulasi
-  Future<void> _aksiMuatDataContoh() async {
-    await _layananPenyimpanan.pasangDataContoh();
+  /// Menghapus transaksi seketika (DELETE)
+  Future<void> _hapusTransaksi(ModelTransaksi transaksi) async {
+    await _layananPenyimpanan.hapusTransaksi(transaksi.idTransaksi);
     await _muatData();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Data simulasi berhasil dimuat!')),
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Catatan "${transaksi.judulTransaksi}" berhasil dihapus'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  /// Dialog konfirmasi hapus catatan di layar utama
+  void _tampilkanDialogHapus(ModelTransaksi transaksi) {
+    showDialog(
+      context: context,
+      builder: (konteks) => AlertDialog(
+        title: const Text('Hapus Catatan?'),
+        content: Text(
+          'Apakah kamu yakin ingin menghapus catatan "${transaksi.judulTransaksi}" sejumlah ${FormatUang.keRupiah(transaksi.jumlahUang)}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(konteks),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () {
+              Navigator.pop(konteks);
+              _hapusTransaksi(transaksi);
+            },
+            child: const Text('Hapus', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
     );
   }
 
-  /// Menghapus semua catatan data
-  Future<void> _aksiHapusSemuaData() async {
-    await _layananPenyimpanan.hapusSemuaTransaksi();
-    await _muatData();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Semua catatan berhasil direset.')),
-    );
-  }
-
-  /// Membuka form atur target anggaran
+  /// Membuka form atur / buat target belanja
   void _bukaModalAturTarget() {
     showModalBottomSheet(
       context: context,
@@ -104,12 +138,10 @@ class _LayarUtamaState extends State<LayarUtama> {
           targetSaatIni: _taskTarget,
           saatDisimpan: (targetBaru) async {
             await _layananPenyimpanan.simpanTaskTarget(targetBaru);
-            setState(() {
-              _taskTarget = targetBaru;
-            });
+            await _muatData();
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Task Target berhasil diperbarui!')),
+                const SnackBar(content: Text('Target Belanja berhasil disimpan!')),
               );
             }
           },
@@ -118,13 +150,60 @@ class _LayarUtamaState extends State<LayarUtama> {
     );
   }
 
-  /// Membuka layar tambah transaksi
-  void _bukaLayarTambahTransaksi() {
+  /// Menghapus target belanja
+  void _konfirmasiHapusTarget() {
+    showDialog(
+      context: context,
+      builder: (konteks) => AlertDialog(
+        title: const Text('Hapus Target Belanja?'),
+        content: const Text(
+          'Target belanja dan estimasi waktu pencapaiannya akan dihapus dari beranda.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(konteks),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () async {
+              Navigator.pop(konteks);
+              await _layananPenyimpanan.hapusTaskTarget();
+              await _muatData();
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Target Belanja telah dihapus')),
+                );
+              }
+            },
+            child: const Text('Hapus', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Membuka layar tambah pemasukan atau pengeluaran
+  void _bukaLayarTambahTransaksi(JenisTransaksi jenisAwal) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (konteks) => LayarTambahTransaksi(
+          jenisTransaksiAwal: jenisAwal,
           saatDisimpan: _tambahTransaksiBaru,
+        ),
+      ),
+    );
+  }
+
+  /// Membuka layar ubah transaksi
+  void _bukaLayarUbahTransaksi(ModelTransaksi transaksi) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (konteks) => LayarTambahTransaksi(
+          transaksiUntukDiedit: transaksi,
+          saatDisimpan: _perbaruiTransaksi,
         ),
       ),
     );
@@ -136,16 +215,54 @@ class _LayarUtamaState extends State<LayarUtama> {
       context,
       MaterialPageRoute(
         builder: (konteks) => LayarRiwayat(
-          daftarSemuaTransaksi: _daftarTransaksi,
-          saatHapusTransaksi: _hapusTransaksi,
+          saatDataBerubah: _muatData,
         ),
       ),
     ).then((_) => _muatData());
   }
 
+  /// Mereset semua transaksi
+  Future<void> _aksiResetSemuaData() async {
+    final konfirmasi = await showDialog<bool>(
+      context: context,
+      builder: (konteks) => AlertDialog(
+        title: const Text('Reset Semua Data?'),
+        content: const Text('Semua catatan transaksi keuangan akan dihapus permanen.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(konteks, false), child: const Text('Batal')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () => Navigator.pop(konteks, true),
+            child: const Text('Reset', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (konfirmasi == true) {
+      await _layananPenyimpanan.hapusSemuaTransaksi();
+      await _muatData();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Semua catatan berhasil direset.')),
+      );
+    }
+  }
+
+  /// Menghitung ulang pencapaian target secara manual saat tombol ditekan
+  Future<void> _hitungUlangPencapaianTarget() async {
+    await _muatData();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Estimasi pencapaian target berhasil dihitung ulang!'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Perhitungan total keuangan
     final double totalUangSaya = _layananPenyimpanan.hitungTotalUangSaya(_daftarTransaksi);
 
     double totalPemasukan = 0;
@@ -189,23 +306,11 @@ class _LayarUtamaState extends State<LayarUtama> {
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert, color: Colors.black54),
             onSelected: (nilai) {
-              if (nilai == 'muat_contoh') {
-                _aksiMuatDataContoh();
-              } else if (nilai == 'hapus_semua') {
-                _aksiHapusSemuaData();
+              if (nilai == 'hapus_semua') {
+                _aksiResetSemuaData();
               }
             },
             itemBuilder: (konteks) => [
-              const PopupMenuItem(
-                value: 'muat_contoh',
-                child: Row(
-                  children: [
-                    Icon(Icons.auto_awesome, size: 18, color: Colors.teal),
-                    SizedBox(width: 8),
-                    Text('Isi Data Simulasi'),
-                  ],
-                ),
-              ),
               const PopupMenuItem(
                 value: 'hapus_semua',
                 child: Row(
@@ -371,45 +476,74 @@ class _LayarUtamaState extends State<LayarUtama> {
                       ),
                     ),
 
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
 
-                    // 2. KARTU TASK TARGET ANGGARAN (Uang Saya / Target, contoh: 350k / 500k)
+                    // 2. KARTU TARGET BELANJA & ESTIMASI PENCAPAIAN
                     KartuTaskTarget(
-                      totalUangSaya: totalUangSaya,
                       taskTarget: _taskTarget,
-                      saatDitekanAturTarget: _bukaModalAturTarget,
+                      estimasi: _estimasiTarget,
+                      saatDitekanBuatTarget: _bukaModalAturTarget,
+                      saatDitekanUbahTarget: _bukaModalAturTarget,
+                      saatDitekanHapusTarget: _konfirmasiHapusTarget,
+                      saatDitekanHitungUlang: _hitungUlangPencapaianTarget,
                     ),
 
-                    // 3. MENU TOMBOL CEPAT
+                    // 3. DUA TOMBOL CATAT TRANSAKSI (TAMBAH PEMASUKAN & TAMBAH PENGELUARAN) + CEK RIWAYAT
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      child: Row(
+                      child: Column(
                         children: [
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: _bukaLayarTambahTransaksi,
-                              icon: const Icon(Icons.add_circle_outline_rounded, size: 18),
-                              label: const Text('Catat Transaksi'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.teal,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
+                          Row(
+                            children: [
+                              // Tombol Tambah Pemasukan
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: () => _bukaLayarTambahTransaksi(JenisTransaksi.pemasukan),
+                                  icon: const Icon(Icons.add_circle_outline_rounded, size: 18),
+                                  label: const Text('Pemasukan'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.green.shade600,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    elevation: 1,
+                                  ),
                                 ),
                               ),
-                            ),
+                              const SizedBox(width: 10),
+                              // Tombol Tambah Pengeluaran
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: () => _bukaLayarTambahTransaksi(JenisTransaksi.pengeluaran),
+                                  icon: const Icon(Icons.remove_circle_outline_rounded, size: 18),
+                                  label: const Text('Pengeluaran'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.redAccent.shade400,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    elevation: 1,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 10),
-                          Expanded(
+                          const SizedBox(height: 8),
+                          // Tombol Cek Riwayat
+                          SizedBox(
+                            width: double.infinity,
                             child: OutlinedButton.icon(
                               onPressed: _bukaLayarRiwayat,
                               icon: const Icon(Icons.date_range_rounded, size: 18),
-                              label: const Text('Cek Riwayat'),
+                              label: const Text('Cek Riwayat (Minggu Ini, Lalu & 1 Bulan)'),
                               style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.teal,
-                                side: const BorderSide(color: Colors.teal),
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                foregroundColor: Colors.teal.shade800,
+                                side: BorderSide(color: Colors.teal.shade400),
+                                padding: const EdgeInsets.symmetric(vertical: 11),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(14),
                                 ),
@@ -420,9 +554,9 @@ class _LayarUtamaState extends State<LayarUtama> {
                       ),
                     ),
 
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
 
-                    // 4. DAFTAR CATATAN TERBARU
+                    // 4. DAFTAR TRANSAKSI TERKINI DENGAN FULL CRUD (BISA DIEDIT DAN DIHAPUS)
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Row(
@@ -469,24 +603,11 @@ class _LayarUtamaState extends State<LayarUtama> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'Klik tombol "+ Catat Transaksi" untuk memulai pembukuan.',
+                                'Gunakan tombol "+ Pemasukan" atau "- Pengeluaran" di atas untuk mulai mencatat keuanganmu.',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.grey.shade600,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              OutlinedButton.icon(
-                                onPressed: _aksiMuatDataContoh,
-                                icon: const Icon(Icons.auto_awesome, size: 16),
-                                label: const Text('Isi Data Contoh Simulasi'),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: Colors.teal,
-                                  side: const BorderSide(color: Colors.teal),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
                                 ),
                               ),
                             ],
@@ -526,13 +647,28 @@ class _LayarUtamaState extends State<LayarUtama> {
                                 '${FormatUang.keTanggalSingkat(item.tanggalTransaksi)} • ${item.kategoriTransaksi}',
                                 style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                               ),
-                              trailing: Text(
-                                '${adalahPemasukan ? '+' : '-'}${FormatUang.keRupiah(item.jumlahUang)}',
-                                style: TextStyle(
-                                  color: adalahPemasukan ? Colors.green : Colors.redAccent,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                ),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    '${adalahPemasukan ? '+' : '-'}${FormatUang.keRupiah(item.jumlahUang)}',
+                                    style: TextStyle(
+                                      color: adalahPemasukan ? Colors.green : Colors.redAccent,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.edit_outlined, size: 18, color: Colors.teal),
+                                    tooltip: 'Ubah',
+                                    onPressed: () => _bukaLayarUbahTransaksi(item),
+                                  ),
+                                  IconButton(
+                                    icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400),
+                                    tooltip: 'Hapus',
+                                    onPressed: () => _tampilkanDialogHapus(item),
+                                  ),
+                                ],
                               ),
                             ),
                           );
@@ -547,4 +683,3 @@ class _LayarUtamaState extends State<LayarUtama> {
     );
   }
 }
-
