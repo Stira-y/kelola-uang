@@ -58,10 +58,10 @@ class _LayarRiwayatTargetState extends State<LayarRiwayatTarget> {
             children: [
               const Row(
                 children: [
-                  Icon(Icons.military_tech_rounded, color: Colors.amber, size: 24),
+                  Icon(Icons.history_rounded, color: Colors.teal, size: 24),
                   SizedBox(width: 8),
                   Text(
-                    'Target Belanja Tercapai',
+                    'Riwayat Target Belanja',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                 ],

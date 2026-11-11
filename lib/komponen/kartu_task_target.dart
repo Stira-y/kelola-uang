@@ -106,8 +106,8 @@ class KartuTaskTarget extends StatelessWidget {
                   const SizedBox(width: 8),
                   IconButton(
                     onPressed: saatDitekanLihatRiwayatTarget,
-                    icon: const Icon(Icons.military_tech_rounded, color: Colors.amber),
-                    tooltip: 'Lihat Target Tercapai ($jumlahTargetTercapai)',
+                    icon: const Icon(Icons.history_rounded, color: Colors.teal),
+                    tooltip: 'Riwayat Target Tercapai ($jumlahTargetTercapai)',
                   ),
                 ],
               ],

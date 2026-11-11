@@ -226,7 +226,7 @@ class _LayarUtamaState extends State<LayarUtama> {
     ).then((_) => _muatData());
   }
 
-  /// Menyimpan target belanja yang telah terpenuhi beserta tanggalnya
+  /// Menyimpan target belanja yang telah terpenuhi beserta tanggalnya dan memotong saldo
   Future<void> _simpanTargetTercapai() async {
     if (_taskTarget == null) return;
     final sekarang = DateTime.now();
@@ -236,9 +236,22 @@ class _LayarUtamaState extends State<LayarUtama> {
       jumlahTarget: _taskTarget!.jumlahTarget,
       tanggalDibuat: _taskTarget!.tanggalDibuat,
       tanggalTercapai: sekarang,
-      keterangan: 'Tercapai dengan saldo ${FormatUang.keRupiah(_estimasiTarget?.totalUangSaatIni ?? _taskTarget!.jumlahTarget)}',
+      keterangan: 'Tercapai dan telah dibelanjakan senilai ${FormatUang.keRupiah(_taskTarget!.jumlahTarget)}',
     );
 
+    // 1. Kurangi total uang sesuai target belanja yang sudah terpenuhi
+    final transaksiBelanja = ModelTransaksi(
+      idTransaksi: 'belanja_${sekarang.millisecondsSinceEpoch}',
+      judulTransaksi: 'Pembelian: ${targetSelesai.namaTarget}',
+      jumlahUang: targetSelesai.jumlahTarget,
+      jenisTransaksi: JenisTransaksi.pengeluaran,
+      kategoriTransaksi: 'Belanja',
+      tanggalTransaksi: sekarang,
+      catatanTambahan: 'Pengeluaran untuk pemenuhan target belanja',
+    );
+    await _layananPenyimpanan.tambahTransaksi(transaksiBelanja);
+
+    // 2. Simpan ke riwayat target belanja tercapai dan bersihkan target aktif
     await _layananPenyimpanan.simpanTargetTercapai(targetSelesai);
     await _muatData();
     if (!mounted) return;
@@ -248,19 +261,19 @@ class _LayarUtamaState extends State<LayarUtama> {
       builder: (konteks) => AlertDialog(
         title: const Row(
           children: [
-            Icon(Icons.emoji_events_rounded, color: Colors.amber, size: 28),
+            Icon(Icons.history_rounded, color: Colors.teal, size: 28),
             SizedBox(width: 8),
-            Text('Target Tercapai!'),
+            Text('Target Disimpan!'),
           ],
         ),
         content: Text(
-          'Selamat! Target "${targetSelesai.namaTarget}" (${FormatUang.keRupiah(targetSelesai.jumlahTarget)}) telah berhasil disimpan pada ${FormatUang.keTanggalLengkap(sekarang)}.\n\nTarget aktif telah diarsipkan dan kamu sekarang bisa membuat target belanja baru!',
+          'Target "${targetSelesai.namaTarget}" (${FormatUang.keRupiah(targetSelesai.jumlahTarget)}) telah berhasil disimpan pada ${FormatUang.keTanggalLengkap(sekarang)}.\n\nTotal saldo kamu telah otomatis berkurang ${FormatUang.keRupiah(targetSelesai.jumlahTarget)} untuk pemenuhan belanja target ini. Kamu bisa melihat daftar riwayatnya kapan saja.',
         ),
         actions: [
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
             onPressed: () => Navigator.pop(konteks),
-            child: const Text('Tutup', style: TextStyle(color: Colors.white)),
+            child: const Text('Mengerti', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -378,9 +391,9 @@ class _LayarUtamaState extends State<LayarUtama> {
                 value: 'target_tercapai',
                 child: Row(
                   children: [
-                    const Icon(Icons.military_tech_rounded, size: 18, color: Colors.amber),
+                    const Icon(Icons.history_rounded, size: 18, color: Colors.teal),
                     const SizedBox(width: 8),
-                    Text('Target Tercapai ($_jumlahTargetTercapai)'),
+                    Text('Riwayat Target ($_jumlahTargetTercapai)'),
                   ],
                 ),
               ),
